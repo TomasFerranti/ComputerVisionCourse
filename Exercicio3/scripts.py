@@ -110,23 +110,35 @@ def applyFilter(img, filter, convertToColor=True):
 
 def questao3():
     filter1 = np.ones((3,3))
-    filter2 = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])
-    filter3 = np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])
+    filter2_ver = np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])
+    filter2_hor = np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])
+    filter3_ver = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
+    filter3_hor = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])    
     filter4 = np.array([1, 4, 6, 4, 1]).reshape(-1, 1)
     filter4 = filter4 @ filter4.T
-    filters = [filter1, filter2, filter3, filter4]
+    filters = [filter1, filter2_ver, filter2_hor, filter3_ver, filter3_hor, filter4]
     filters = [f / np.sum(np.abs(f)) for f in filters]
 
     img = cv.imread(img2_filename)
     imgGrey = (np.mean(img, axis=2) / 255)
-    imgs = [applyFilter(imgGrey, f) for f in filters]
+    imgs = [applyFilter(imgGrey, f, convertToColor=False) for f in filters]
+    imgs.append(np.round(np.sqrt(imgs[3]**2 + imgs[4]**2)))
 
-    fig, ax = plt.subplots(2, 2, figsize=(15, 15))
-    titles = ["Constant", "Vertical Derivative", "Horizontal Derivative", "Gaussian Blur 5x5"]
-    for i in range(len(filters)):
-        cAx = ax[i//2][i%2]
-        cAx.imshow(imgs[i], cmap='gray', vmin=0, vmax=1)
-        cAx.set_title(titles[i])
+    cols = 4
+    rows = int(np.ceil(len(filters) / cols))
+    
+    fig, ax = plt.subplots(rows, cols, figsize=(5*cols, 5*rows))
+    imgCounter = 0
+    titles = ["Constant", "Vertical Derivative", "Horizontal Derivative", None, "Vertical Sobel", "Horizontal Sobel", "Gaussian Blur 5x5", "Gradient Sobel"]
+    for i in range(len(titles)):
+        cAx = ax[i//cols][i%cols]
+        if type(titles[i]) != type(None):
+            cAx.imshow(imgs[imgCounter], cmap='gray', vmin=0, vmax=1)
+            cAx.set_title(titles[i])
+            imgCounter += 1
+        else:
+            cAx.imshow(np.zeros(imgs[0].shape), cmap='gray', vmin=0, vmax=1)
+            
     fig.savefig("figs/img3.png", dpi=300)
 
 # ----------------------------------------------------------------
