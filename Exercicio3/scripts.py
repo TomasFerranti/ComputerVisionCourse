@@ -96,7 +96,7 @@ def applyFilter(img, filter, convertToColor=True):
     imgFiltered = np.zeros((width - widthf, height - heightf))
     for i in range(0, width - widthf):
         for j in range(0, height - heightf):
-            imgFiltered[i, j] = np.sum(img[i:i+widthf, j:j+heightf] * filter)
+            imgFiltered[i, j] = np.abs(np.sum(img[i:i+widthf, j:j+heightf] * filter))
     imgFiltered = np.clip(imgFiltered, 0, 1)
 
     if not convertToColor:
@@ -122,7 +122,7 @@ def questao3():
     img = cv.imread(img2_filename)
     imgGrey = (np.mean(img, axis=2) / 255)
     imgs = [applyFilter(imgGrey, f, convertToColor=False) for f in filters]
-    imgs.append(np.round(np.sqrt(imgs[3]**2 + imgs[4]**2)))
+    imgs.append(np.sqrt((imgs[3]**2 + imgs[4]**2) / 2))
 
     cols = 4
     rows = int(np.ceil(len(filters) / cols))
