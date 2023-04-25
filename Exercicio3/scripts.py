@@ -173,18 +173,20 @@ def questao4():
 # ----------------------------------------------------------------
 # Enquadrar imagens
 def removeImgBorders():
-    img_filenames = os.listdir("figs/")
+    img_filenames = os.listdir("output/")
     for img_filename in img_filenames:
-        # Path to folder
-        img_filename = "figs/" + img_filename
+        if ".png" not in img_filename and ".jpg" not in img_filename:
+            continue
+        # Caminho para o diretório
+        img_filename = "output/" + img_filename
 
-        # Load the image
+        # Carregar imagem
         img = cv.imread(img_filename)
 
-        # Convert it to grayscale
+        # Converter para escala de cinza
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 
-        # Find indexes of first non white in 4 directions
+        # Achar os indexes dos primeros pixels nao brancos de cada direção
         width, height = gray.shape
         for i in range(0, int(width/2)):
             if np.unique(gray[i, :]).shape[0] > 1:
@@ -203,10 +205,10 @@ def removeImgBorders():
                 yR = i
                 break
 
-        # Crop the image using the bounding box
+        # Cortar a imagem usando os indices
         cropped_image = img[xL:xR, yL:yR, :]
 
-        # Save the cropped image locally
+        # Salvar imagem
         cv.imwrite(img_filename, cropped_image)
 
 if __name__ == "__main__":
