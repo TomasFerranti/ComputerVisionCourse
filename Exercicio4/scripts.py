@@ -11,6 +11,7 @@ import scipy.io.wavfile as wavfile
 
 # Arquivo para questão 1 e 2
 audio1_filename = "content/StarWars60.wav"
+audio2_filename = "content/Coruja.WAV"
 
 # Arquivos para questão 3 e 4
 img1_filename = "content/frutas.jpg"
@@ -74,11 +75,12 @@ def questao2():
 # Questão 3
 def convolveFFT(audio, impulse_response):
     # Normalizar
+    audio = audio / np.max(np.abs(audio))
     impulse_response = impulse_response / np.max(np.abs(impulse_response))
     
     # Tamanho é a potencia de 2
     fft_size = 2**int(np.ceil(np.log2(len(audio) + len(impulse_response))))
-    
+
     # Parte real da transformada de fourier
     audio_fft = np.fft.rfft(audio, fft_size)
     impulse_response_fft = np.fft.rfft(impulse_response, fft_size)
@@ -88,51 +90,59 @@ def convolveFFT(audio, impulse_response):
     
     # Retornar de fourier
     convolved_audio = np.fft.irfft(convolved_fft, fft_size)[:len(audio)]
+
+    # Normalizar
+    convolved_audio = convolved_audio / np.max(np.abs(convolved_audio))
     return convolved_audio
+
+def applyEcho(sample_rate, audio, second, attenuation):
+    # Impulso do eco
+    delay_samples_echo = int(sample_rate * second)
+    impulse_response_echo = np.zeros(len(audio) + delay_samples_echo)
+    impulse_response_echo[delay_samples_echo] = 1
+
+    # Convolução
+    convolved_audio_echo = attenuation * convolveFFT(audio, impulse_response_echo)
+    
+    return convolved_audio_echo
 
 def questao3():
     # Carregar o arquivo de áudio
-    sample_rate, audio = wavfile.read(audio1_filename)
+    sample_rate, audio = wavfile.read(audio2_filename)
 
+    # Normalizar
+    audio = audio / np.max(np.abs(audio))
+    
     # Caracteristicas de ambos impulsos
     attenuation = 0.8
 
-    # Impulso do eco
-    echo_seconds = 0.5
-    delay_samples_echo = int(sample_rate * echo_seconds)
-
-    impulse_response_echo = np.zeros(len(audio) + delay_samples_echo)
-    impulse_response_echo[0] = 1
-    impulse_response_echo[delay_samples_echo] = attenuation
-
-    # Impulso do reverb
-    delay_times = [0.03, 0.07, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
-    delay_times = [10*time for time in delay_times]
-
-    delay_samples_reverb = int(sample_rate * delay_times[-1])
-
-    impulse_response_reverb = np.zeros(len(audio) + delay_samples_reverb)
-    impulse_response_reverb[0] = 1
-    for idx, delay in enumerate(delay_times):
-        idx = int(sample_rate * delay)
-        impulse_response_reverb[idx:idx+len(audio)] += attenuation ** idx
-
-    # Perform FFT convolution
-    convolved_audio_echo = convolveFFT(audio, impulse_response_echo)
-    convolved_audio_reverb = convolveFFT(audio, impulse_response_reverb)
+    # Audio do eco
+    convolved_audio_echo = audio + applyEcho(sample_rate, audio, 0.5, attenuation)
     
+    # Audio do reverb
+    n_copies = 10
+    dt = 0.1
+    delay_times = [dt + n * dt for n in range(n_copies)]
+    reverbs = []
+    for idx, delay in enumerate(delay_times):
+        reverbs.append(applyEcho(sample_rate, audio, delay, attenuation**(idx + 1)))
+    convolved_audio_reverb = audio.copy()
+    for reverb in reverbs:
+        convolved_audio_reverb += reverb
+
     # Salvar os dados do áudio filtrado em um arquivo .wav
+    convolved_audio_echo = convolved_audio_echo / np.max(np.abs(convolved_audio_echo))
+    convolved_audio_reverb = convolved_audio_reverb / np.max(np.abs(convolved_audio_reverb))
+    convolved_audio_echo = (2**15) * convolved_audio_echo
+    convolved_audio_reverb = (2**15) * convolved_audio_reverb
+
     wavfile.write("output/audio3a.wav", sample_rate, convolved_audio_echo.astype(np.int16))
     wavfile.write("output/audio3b.wav", sample_rate, convolved_audio_reverb.astype(np.int16))
 
 # ----------------------------------------------------------------
 # Questão 4
-def questao4():
-    img = cv.imread(img1_filename)
-    imgChannelsLow = []
-    imgChannelsHigh = []
-    pLowKeep = 0.1
-    pHighKeep = 0.1
+def keepFrequencies(img, p, high=False):
+    imgChannels = []
     # Realizar o corte para cada canal RGB
     for channel in range(3):
         imgC = img[:, :, channel]
@@ -144,31 +154,35 @@ def questao4():
         # Criar uma máscara para preservar apenas uma porcentagem p das frequencias
         rows, cols = imgC.shape
         crow, ccol = rows // 2, cols // 2
-
-        maskLow = np.zeros((rows, cols), np.uint8)
-        maskLow[int(crow - crow*pLowKeep):int(crow + crow*pLowKeep), int(ccol - ccol*pLowKeep):int(ccol + ccol*pLowKeep)] = 1
-
-        maskHigh = np.ones((rows, cols), np.uint8)
-        maskHigh[int(crow - crow*pHighKeep):int(crow + crow*pHighKeep), int(ccol - ccol*pHighKeep):int(ccol + ccol*pHighKeep)] = 0
-
+        
+        if high:
+            mask = np.ones((rows, cols), np.uint8)
+            mask[int(crow - crow*p):int(crow + crow*p), int(ccol - ccol*p):int(ccol + ccol*p)] = 0
+        else:
+            mask = np.zeros((rows, cols), np.uint8)
+            mask[int(crow - crow*p):int(crow + crow*p), int(ccol - ccol*p):int(ccol + ccol*p)] = 1
+        
         # Aplicar a máscara e inverter a transformada de Fourier
-        fshiftLow = fshift * maskLow
-        f_ishiftLow = np.fft.ifftshift(fshiftLow)
-        imgCLow = np.fft.ifft2(f_ishiftLow)
-        imgCLow = np.abs(imgCLow)
+        fshift = fshift * mask
+        f_ishift = np.fft.ifftshift(fshift)
+        imgC = np.fft.ifft2(f_ishift)
+        imgC = np.abs(imgC)
 
-        fshiftHigh = fshift * maskHigh
-        f_ishiftHigh = np.fft.ifftshift(fshiftHigh)
-        imgCHigh = np.fft.ifft2(f_ishiftHigh)
-        imgCHigh = np.abs(imgCHigh)
-
-        imgChannelsLow.append(imgCLow)
-        imgChannelsHigh.append(imgCHigh)
+        imgChannels.append(imgC)
     
     # Concatenar os cortes para cada canal RGB para uma só imagem de novo
-    imgLow = np.concatenate([img.reshape(img.shape[0], img.shape[1], 1) for img in imgChannelsLow], axis=2)
-    imgHigh = np.concatenate([img.reshape(img.shape[0], img.shape[1], 1) for img in imgChannelsHigh], axis=2)
-    cv.imwrite("output/img4baixas.jpg", imgLow)    
+    imgFinal = np.concatenate([imgC.reshape(imgC.shape[0], imgC.shape[1], 1) for imgC in imgChannels], axis=2)
+    return imgFinal
+
+def questao4():
+    img = cv.imread(img1_filename)
+
+    imgLow_p_10 = keepFrequencies(img, 0.1, False)
+    imgLow_p_80 = keepFrequencies(img, 0.8, False)
+    imgHigh = keepFrequencies(img, 0.1, True)
+
+    cv.imwrite("output/img4baixas10.jpg", imgLow_p_10)    
+    cv.imwrite("output/img4baixas80.jpg", imgLow_p_80)    
     cv.imwrite("output/img4altas.jpg", imgHigh)    
     
 # ----------------------------------------------------------------
